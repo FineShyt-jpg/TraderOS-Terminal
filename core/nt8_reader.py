@@ -179,6 +179,16 @@ class NT8Reader:
         except Exception:
             return []
 
+    def parse_workspace_file(self, path: Path) -> list[dict]:
+        """
+        Parse a single NT8 workspace XML file given its path.
+        Returns list of strategy config dicts (same format as get_workspace_strategy_configs).
+        """
+        try:
+            return self._parse_workspace_xml(path)
+        except Exception:
+            return []
+
     def get_workspace_strategy_configs(self) -> list[dict]:
         """
         Parse NT8 workspace XML files to extract running strategy configurations.

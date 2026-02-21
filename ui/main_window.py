@@ -20,7 +20,7 @@ from datetime import date
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
     QStatusBar, QMenuBar, QMenu, QMessageBox, QTabWidget,
-    QLabel, QToolBar, QToolButton, QApplication
+    QLabel, QToolBar, QToolButton, QApplication, QFileDialog
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QSettings
 from PyQt6.QtGui import QAction, QKeySequence, QFont, QColor
@@ -193,6 +193,7 @@ class MainWindow(QMainWindow):
         data_menu = menu_bar.addMenu("Data")
         data_menu.addAction(self._make_action("Refresh Tree", self.strategy_tree.refresh, "F5"))
         data_menu.addAction(self._make_action("Auto-detect NT8 Strategies", self._auto_detect_strategies))
+        data_menu.addAction(self._make_action("Import Workspace File...", self._import_workspace_file))
         data_menu.addSeparator()
         data_menu.addAction(self._make_action("Inspect NT8 Database Tables", self._inspect_db))
 
@@ -375,6 +376,53 @@ class MainWindow(QMainWindow):
             self,
             "Auto-detect Complete",
             f"Detected and registered {added} strategy configurations from workspace files."
+        )
+
+    def _import_workspace_file(self):
+        """Let the user pick a single NT8 workspace XML and import its strategies."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import NT8 Workspace File",
+            str(Path.home()),
+            "NT8 Workspace Files (*.xml);;All Files (*)",
+        )
+        if not path:
+            return
+
+        configs = self.reader.parse_workspace_file(Path(path))
+        if not configs:
+            QMessageBox.warning(
+                self,
+                "Import Workspace",
+                f"No strategy configurations found in:\n{path}\n\n"
+                "The file may use an unsupported format, or contain no active strategies.",
+            )
+            return
+
+        added = 0
+        for cfg in configs:
+            if not cfg.get("label") or not cfg.get("account"):
+                continue
+            params = StrategyParams(
+                label=cfg["label"],
+                account=cfg["account"],
+                adx_period=cfg.get("adx_period"),
+                protective_stop_ticks=cfg.get("protective_stop_ticks"),
+                long_failed_exit=cfg.get("long_failed_exit"),
+                short_failed_exit=cfg.get("short_failed_exit"),
+                overbought=cfg.get("overbought"),
+                oversold=cfg.get("oversold"),
+                long_exit_at=cfg.get("long_exit_at"),
+                short_exit_at=cfg.get("short_exit_at"),
+            )
+            self.registry.register(params)
+            added += 1
+
+        self.strategy_tree.refresh()
+        QMessageBox.information(
+            self,
+            "Import Complete",
+            f"Imported {added} strategy configuration(s) from:\n{Path(path).name}",
         )
 
     def _inspect_db(self):
