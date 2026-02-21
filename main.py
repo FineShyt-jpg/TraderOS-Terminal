@@ -49,7 +49,7 @@ def main():
 
     # WebEngine MUST be imported before QApplication is created.
     # When running as root (CI/containers), Chrome requires --no-sandbox.
-    if os.getuid() == 0:
+    if hasattr(os, "getuid") and os.getuid() == 0:
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox")
     try:
         from PyQt6.QtWebEngineWidgets import QWebEngineView  # noqa: F401
