@@ -7,6 +7,8 @@ strategy parameters from workspace XML files.
 import sqlite3
 import os
 import xml.etree.ElementTree as ET
+import zipfile
+import io
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Optional
@@ -181,13 +183,42 @@ class NT8Reader:
 
     def parse_workspace_file(self, path: Path) -> list[dict]:
         """
-        Parse a single NT8 workspace XML file given its path.
-        Returns list of strategy config dicts (same format as get_workspace_strategy_configs).
+        Parse a single NT8 workspace file.
+        Accepts .xml directly or .NT8BK (ZIP archive containing XMLs).
+        Returns list of strategy config dicts.
         """
+        suffix = path.suffix.lower()
+        if suffix in (".nt8bk", ".zip"):
+            return self._parse_nt8bk(path)
         try:
             return self._parse_workspace_xml(path)
         except Exception:
             return []
+
+    def _parse_nt8bk(self, path: Path) -> list[dict]:
+        """Extract and parse all XML files inside an NT8BK (ZIP) backup archive."""
+        configs = []
+        try:
+            with zipfile.ZipFile(path, "r") as zf:
+                for name in zf.namelist():
+                    if not name.lower().endswith(".xml"):
+                        continue
+                    try:
+                        xml_bytes = zf.read(name)
+                        root = ET.fromstring(xml_bytes)
+                        # Wrap in a fake file-parse by reusing element iteration logic
+                        for elem in root.iter():
+                            tag_lower = elem.tag.lower()
+                            if tag_lower in ("ninjascript", "strategy", "strategybase"):
+                                config = self._extract_strategy_params(elem)
+                                if config:
+                                    config["workspace"] = Path(name).stem
+                                    configs.append(config)
+                    except ET.ParseError:
+                        continue
+        except (zipfile.BadZipFile, Exception):
+            pass
+        return configs
 
     def get_workspace_strategy_configs(self) -> list[dict]:
         """

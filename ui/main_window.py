@@ -384,7 +384,7 @@ class MainWindow(QMainWindow):
             self,
             "Import NT8 Workspace File",
             str(Path.home()),
-            "NT8 Workspace Files (*.xml);;All Files (*)",
+            "NT8 Workspace Files (*.xml *.NT8BK *.nt8bk);;All Files (*)",
         )
         if not path:
             return
