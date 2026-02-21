@@ -280,14 +280,25 @@ class NT8Reader:
             "raw_params": {},
         }
 
-        # Collect all attributes and child text into a flat dict for searching
+        # Collect all attributes and child text into a flat dict for searching.
+        # Use setdefault so the FIRST occurrence of a tag name wins — this prevents
+        # plot/line <Name> elements deeper in the tree from overwriting the strategy name.
         all_values = {}
         for attr, val in elem.attrib.items():
             all_values[attr.lower()] = val
 
+        # If this is a <Strategy> wrapper element, the first child's tag IS the
+        # strategy class name (e.g. <SMI_Fade_1m_ZoneExitEMA>). Seed it first so
+        # it takes priority over any later <Name> elements from plots/indicators.
+        if len(elem) == 1:
+            child_tag = elem[0].tag
+            if "}" in child_tag:
+                child_tag = child_tag.split("}")[1]
+            all_values.setdefault("name", child_tag)
+
         for child in elem.iter():
             if child.text and child.text.strip():
-                all_values[child.tag.lower()] = child.text.strip()
+                all_values.setdefault(child.tag.lower(), child.text.strip())
 
         # Strategy name / label
         for key in ("name", "fulltypename", "typename", "label", "strategyname"):
@@ -295,11 +306,14 @@ class NT8Reader:
                 config["label"] = all_values[key]
                 break
 
-        # Account
+        # Account — live strategies store an account name; backtest templates don't,
+        # but do store the instrument. Fall back to instrument so the row isn't blank.
         for key in ("account", "accountname", "acct"):
             if key in all_values:
                 config["account"] = all_values[key]
                 break
+        if not config["account"]:
+            config["account"] = all_values.get("instrumentorinstrumentlist")
 
         # ADX Period
         for key in ("adxperiod", "adx_period", "adxlength", "adxfilterperiod"):
